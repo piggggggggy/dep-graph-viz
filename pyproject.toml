@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dep-graph"
+version = "0.1.0"
+description = "Interactive dependency graph visualizer for any project"
+requires-python = ">=3.9"
+
+[project.scripts]
+dep-graph = "dep_graph.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["dep_graph*"]
