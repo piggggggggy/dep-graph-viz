@@ -71,3 +71,48 @@ class DependencyGraph:
             nodes=[n for n in self.nodes if n.id in ids],
             edges=[e for e in self.edges if e.source in ids or e.target in ids],
         )
+
+    def find_cycles(self) -> list[list[str]]:
+        """Detect all unique cycles using DFS with back-edge detection."""
+        adj: dict[str, list[str]] = {}
+        for e in self.edges:
+            adj.setdefault(e.source, []).append(e.target)
+
+        raw_cycles: list[list[str]] = []
+        for e in self.edges:
+            if e.source == e.target:
+                raw_cycles.append([e.source])
+
+        WHITE, GRAY, BLACK = 0, 1, 2
+        color: dict[str, int] = {n.id: WHITE for n in self.nodes}
+        path: list[str] = []
+
+        def dfs(u: str) -> None:
+            color[u] = GRAY
+            path.append(u)
+            for v in adj.get(u, []):
+                if v == u:
+                    continue
+                if color[v] == GRAY:
+                    idx = path.index(v)
+                    raw_cycles.append(path[idx:])
+                elif color[v] == WHITE:
+                    dfs(v)
+            path.pop()
+            color[u] = BLACK
+
+        for n in self.nodes:
+            if color[n.id] == WHITE:
+                dfs(n.id)
+
+        seen: set[tuple[str, ...]] = set()
+        result: list[list[str]] = []
+        for cycle in raw_cycles:
+            min_idx = cycle.index(min(cycle))
+            normalized = cycle[min_idx:] + cycle[:min_idx]
+            key = tuple(normalized)
+            if key not in seen:
+                seen.add(key)
+                result.append(normalized)
+
+        return sorted(result, key=lambda c: (len(c), c))
