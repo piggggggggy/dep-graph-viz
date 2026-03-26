@@ -165,4 +165,4 @@ def build_graph(
     entry_ids = _find_entry_points(nodes, edges, config)
     _compute_depth(nodes, edges, entry_ids)
 
-    return DependencyGraph(nodes=nodes, edges=edges)
+    return DependencyGraph(nodes=nodes, edges=edges, entry_points=sorted(entry_ids))

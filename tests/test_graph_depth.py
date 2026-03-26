@@ -85,6 +85,23 @@ import os
 import tempfile
 from dep_graph.graph import build_graph
 
+def test_build_graph_stores_entry_points():
+    """build_graph()가 entry_points를 DependencyGraph에 저장하는지 확인."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        os.makedirs(os.path.join(tmpdir, "templates"))
+        os.makedirs(os.path.join(tmpdir, "sections"))
+        with open(os.path.join(tmpdir, "templates", "index.json"), "w") as f:
+            f.write('{"sections":{"main":{"type":"header"}}}')
+        with open(os.path.join(tmpdir, "sections", "header.liquid"), "w") as f:
+            f.write("")
+        config = GraphConfig(
+            scan_dirs=["templates", "sections"],
+            entry_patterns=["templates/*.json"],
+        )
+        graph = build_graph(tmpdir, config)
+        assert "templates/index.json" in graph.entry_points
+
+
 def test_build_graph_computes_depth():
     """build_graph()가 Node.depth를 올바르게 설정하는지 통합 테스트."""
     with tempfile.TemporaryDirectory() as tmpdir:

@@ -51,6 +51,7 @@ class DependencyGraph:
     """The complete graph, ready for serialization or rendering."""
     nodes: list[Node] = field(default_factory=list)
     edges: list[Edge] = field(default_factory=list)
+    entry_points: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {

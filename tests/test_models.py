@@ -9,3 +9,14 @@ def test_node_depth_in_to_dict():
     d = node.to_dict()
     assert d["depth"] == 3
     assert "depth" in d
+
+
+def test_dependency_graph_entry_points_default():
+    from dep_graph.models import DependencyGraph
+    g = DependencyGraph()
+    assert g.entry_points == []
+
+def test_dependency_graph_entry_points_set():
+    from dep_graph.models import DependencyGraph
+    g = DependencyGraph(entry_points=["a.js", "b.js"])
+    assert g.entry_points == ["a.js", "b.js"]
