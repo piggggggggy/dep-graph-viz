@@ -215,16 +215,25 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
     });
     window.addEventListener("mouseup", function() { dragging = false; });
 
+    // Focus mode click
+    circle.addEventListener("click", function(e) {
+      if (!focusModeEnabled) return;
+      e.stopPropagation();
+      activateFocus(n.id);
+    });
+
     // Hover tooltip
     circle.addEventListener("mouseenter", function(e) {
       circle.setAttribute("stroke-width", "2"); circle.setAttribute("r", n.radius * 1.3);
-      edgeEls.forEach(function(line) {
-        if (line.dataset.source === n.id || line.dataset.target === n.id) {
-          line.setAttribute("stroke", "#e94560");
-          line.setAttribute("stroke-width", "1.5");
-          line.setAttribute("stroke-opacity", "1");
-        }
-      });
+      if (!focusedNodeId) {
+        edgeEls.forEach(function(line) {
+          if (line.dataset.source === n.id || line.dataset.target === n.id) {
+            line.setAttribute("stroke", "#e94560");
+            line.setAttribute("stroke-width", "1.5");
+            line.setAttribute("stroke-opacity", "1");
+          }
+        });
+      }
       var deps = edges.filter(function(ed) { return ed.source === n.id; }).map(function(ed) { return (nodeMap[ed.target] || {}).label || ed.target; });
       var usedBy = edges.filter(function(ed) { return ed.target === n.id; }).map(function(ed) { return (nodeMap[ed.source] || {}).label || ed.source; });
       var sizeStr = n.size > 1024 ? (n.size / 1024).toFixed(1) + " KB" : n.size + " B";
@@ -244,11 +253,15 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
     });
     circle.addEventListener("mouseleave", function() {
       circle.setAttribute("stroke-width", "0.5"); circle.setAttribute("r", n.radius);
-      edgeEls.forEach(function(line) {
-        line.setAttribute("stroke", "#334");
-        line.setAttribute("stroke-width", "0.5");
-        line.setAttribute("stroke-opacity", "0.4");
-      });
+      if (focusedNodeId) {
+        activateFocus(focusedNodeId);
+      } else {
+        edgeEls.forEach(function(line) {
+          line.setAttribute("stroke", "#334");
+          line.setAttribute("stroke-width", "0.5");
+          line.setAttribute("stroke-opacity", "0.4");
+        });
+      }
       tooltip.style.display = "none";
     });
 
@@ -287,17 +300,27 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
   svg.addEventListener("mouseup", function() { panning = false; });
 
   // Controls
-  function resetAll() {
-    scale = 1; tx = 0; ty = 0;
-    root.setAttribute("transform", "");
+  function resetVisuals() {
     nodeEls.forEach(function(c) {
       var nd = nodeMap[c.dataset.id];
       c.setAttribute("fill", nd.color);
       c.setAttribute("fill-opacity", "0.85");
       c.setAttribute("stroke", "#fff");
       c.setAttribute("stroke-width", "0.5");
+      c.setAttribute("r", nd.radius);
     });
-    edgeEls.forEach(function(l) { l.setAttribute("stroke", "#334"); l.setAttribute("stroke-opacity", "0.4"); });
+    edgeEls.forEach(function(l) {
+      l.setAttribute("stroke", "#334");
+      l.setAttribute("stroke-width", "0.5");
+      l.setAttribute("stroke-opacity", "0.4");
+      l.setAttribute("stroke-dasharray", "");
+    });
+  }
+
+  function resetAll() {
+    scale = 1; tx = 0; ty = 0;
+    root.setAttribute("transform", "");
+    resetVisuals();
   }
 
   document.getElementById("btnReset").addEventListener("click", resetAll);
@@ -511,9 +534,138 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
     panelContent.appendChild(placeholder);
   }
 
-  function activateFocus(nodeId) {
-    // Stub — implemented in Task 6
+  var focusModeEnabled = false;
+  var focusedNodeId = null;
+
+  // Build reverse adjacency for upstream traversal
+  var adjDown = {};  // source -> [targets] (downstream)
+  var adjUp = {};    // target -> [sources] (upstream)
+  edges.forEach(function(e) {
+    if (!adjDown[e.source]) adjDown[e.source] = [];
+    adjDown[e.source].push(e.target);
+    if (!adjUp[e.target]) adjUp[e.target] = [];
+    adjUp[e.target].push(e.source);
+  });
+
+  function bfsSteps(startId, adj, maxSteps) {
+    var visited = {};
+    visited[startId] = 0;
+    var queue = [startId];
+    while (queue.length > 0) {
+      var curr = queue.shift();
+      var currStep = visited[curr];
+      if (currStep >= maxSteps) continue;
+      var neighbors = adj[curr] || [];
+      for (var i = 0; i < neighbors.length; i++) {
+        if (!(neighbors[i] in visited)) {
+          visited[neighbors[i]] = currStep + 1;
+          queue.push(neighbors[i]);
+        }
+      }
+    }
+    delete visited[startId];
+    return visited;  // { nodeId: stepDistance }
   }
+
+  function activateFocus(nodeId) {
+    if (!focusModeEnabled) {
+      focusModeEnabled = true;
+      btnFocus.classList.add("active");
+      focusControls.style.display = "flex";
+    }
+    focusedNodeId = nodeId;
+    var steps = parseInt(document.getElementById("focusSteps").value) || 2;
+    var downstream = bfsSteps(nodeId, adjDown, steps);
+    var upstream = bfsSteps(nodeId, adjUp, steps);
+
+    var stepOpacity = [1, 0.9, 0.5, 0.3, 0.2, 0.15];
+
+    nodeEls.forEach(function(c) {
+      var nid = c.dataset.id;
+      var nd = nodeMap[nid];
+      if (nid === nodeId) {
+        c.setAttribute("fill-opacity", "1");
+        c.setAttribute("stroke", "#fff");
+        c.setAttribute("stroke-width", "3");
+        c.setAttribute("r", nd.radius * 1.3);
+      } else if (nid in downstream) {
+        var op = stepOpacity[downstream[nid]] || 0.15;
+        c.setAttribute("fill-opacity", String(op));
+        c.setAttribute("stroke", "#FF9800");
+        c.setAttribute("stroke-width", "2");
+        c.setAttribute("r", nd.radius);
+      } else if (nid in upstream) {
+        var op2 = stepOpacity[upstream[nid]] || 0.15;
+        c.setAttribute("fill-opacity", String(op2));
+        c.setAttribute("stroke", "#4ea8de");
+        c.setAttribute("stroke-width", "2");
+        c.setAttribute("r", nd.radius);
+      } else {
+        c.setAttribute("fill-opacity", "0.08");
+        c.setAttribute("stroke", "#fff");
+        c.setAttribute("stroke-width", "0.3");
+        c.setAttribute("r", nd.radius);
+      }
+    });
+
+    edgeEls.forEach(function(l) {
+      var src = l.dataset.source, tgt = l.dataset.target;
+      var isDown = (src === nodeId && tgt in downstream) || (src in downstream && tgt in downstream && downstream[tgt] === downstream[src] + 1);
+      var isUp = (tgt === nodeId && src in upstream) || (tgt in upstream && src in upstream && upstream[src] === upstream[tgt] + 1);
+      if (isDown) {
+        var dStep = downstream[tgt] || 1;
+        l.setAttribute("stroke", "#FF9800");
+        l.setAttribute("stroke-width", dStep === 1 ? "2" : "1.2");
+        l.setAttribute("stroke-opacity", String(stepOpacity[dStep] || 0.15));
+      } else if (isUp) {
+        var uStep = upstream[src] || 1;
+        l.setAttribute("stroke", "#4ea8de");
+        l.setAttribute("stroke-width", uStep === 1 ? "2" : "1.2");
+        l.setAttribute("stroke-opacity", String(stepOpacity[uStep] || 0.15));
+      } else {
+        l.setAttribute("stroke", "#334");
+        l.setAttribute("stroke-width", "0.5");
+        l.setAttribute("stroke-opacity", "0.06");
+      }
+      l.setAttribute("stroke-dasharray", "");
+    });
+  }
+
+  function deactivateFocus() {
+    focusedNodeId = null;
+    resetVisuals();
+  }
+
+  // Focus mode toggle
+  var btnFocus = document.getElementById("btnFocus");
+  var focusControls = document.getElementById("focusControls");
+  btnFocus.addEventListener("click", function() {
+    focusModeEnabled = !focusModeEnabled;
+    btnFocus.classList.toggle("active", focusModeEnabled);
+    focusControls.style.display = focusModeEnabled ? "flex" : "none";
+    if (!focusModeEnabled) deactivateFocus();
+  });
+
+  // Escape to deactivate
+  document.addEventListener("keydown", function(e) {
+    if (e.key === "Escape") {
+      if (focusedNodeId) deactivateFocus();
+      if (focusModeEnabled) {
+        focusModeEnabled = false;
+        btnFocus.classList.remove("active");
+        focusControls.style.display = "none";
+      }
+    }
+  });
+
+  // SVG background click to deactivate
+  svg.addEventListener("click", function(e) {
+    if (e.target.tagName !== "circle" && focusedNodeId) deactivateFocus();
+  });
+
+  document.getElementById("focusSteps").addEventListener("change", function() {
+    if (focusedNodeId) activateFocus(focusedNodeId);
+  });
 
   renderPanel();
 })();
