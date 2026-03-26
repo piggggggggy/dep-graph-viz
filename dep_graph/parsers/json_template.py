@@ -1,8 +1,12 @@
 """Parser for Shopify JSON template files."""
 
 import json
+import re
 from . import BaseParser
 from ..models import FileRef
+
+# Shopify CLI prepends /* ... */ block comments to template JSON files
+_BLOCK_COMMENT_RE = re.compile(r"/\*.*?\*/", re.DOTALL)
 
 
 class JsonTemplateParser(BaseParser):
@@ -10,10 +14,15 @@ class JsonTemplateParser(BaseParser):
     def can_parse(self, relative_path: str) -> bool:
         return relative_path.startswith("templates/") and relative_path.endswith(".json")
 
+    @staticmethod
+    def _strip_json_comments(text: str) -> str:
+        """Remove block comments (/* ... */) that Shopify CLI adds."""
+        return _BLOCK_COMMENT_RE.sub("", text)
+
     def parse(self, relative_path: str, content: str) -> list[FileRef]:
         refs: list[FileRef] = []
         try:
-            data = json.loads(content)
+            data = json.loads(self._strip_json_comments(content))
         except (json.JSONDecodeError, ValueError):
             return refs
 
