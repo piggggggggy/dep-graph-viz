@@ -71,6 +71,8 @@ def render_html(graph: DependencyGraph, config: "Optional[GraphConfig]" = None) 
         LEGEND_ITEMS=_build_legend(config),
         CATEGORY_OPTIONS=_build_category_options(graph),
         STATS_ITEMS=_build_stats(graph),
+        CYCLES_JSON=json.dumps(graph.find_cycles()),
+        ENTRY_POINTS_JSON=json.dumps(graph.entry_points),
     )
 
 
