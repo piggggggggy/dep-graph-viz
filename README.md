@@ -193,6 +193,103 @@ if os.path.isfile(os.path.join(project_dir, "pyproject.toml")):
     return "my_preset"
 ```
 
+## Claude Code 스킬로 사용하기
+
+dep-graph를 [Claude Code](https://claude.com/claude-code) 스킬로 등록하면 `/dep-graph` 슬래시 커맨드로 바로 실행할 수 있습니다.
+
+### 설치
+
+```bash
+# 1. 스킬 디렉토리 생성
+mkdir -p ~/.claude/skills/dep-graph
+
+# 2. SKILL.md 복사
+cp skill/SKILL.md ~/.claude/skills/dep-graph/SKILL.md
+```
+
+또는 직접 `~/.claude/skills/dep-graph/SKILL.md`를 만들어도 됩니다.
+
+### SKILL.md 작성법
+
+`~/.claude/skills/dep-graph/SKILL.md` 파일은 **frontmatter**(YAML 메타데이터) + **본문**(마크다운 명령)으로 구성됩니다.
+
+```yaml
+---
+name: dep-graph
+description: 프로젝트의 파일 의존성을 분석하고 인터랙티브 HTML 시각화를 생성.
+argument-hint: [project-dir] [options]
+disable-model-invocation: false
+allowed-tools: Bash, Read, Glob, Grep
+---
+
+# dep-graph: 의존성 분석 도구
+
+프로젝트의 파일 간 의존성을 분석하여 인터랙티브 HTML 그래프를 생성한다.
+
+## 실행
+
+인수가 주어졌을 때:
+python3 -m dep_graph $ARGUMENTS
+
+인수가 없을 때:
+python3 -m dep_graph . --no-open
+```
+
+#### Frontmatter 필드 설명
+
+| 필드 | 설명 |
+|------|------|
+| `name` | 슬래시 커맨드 이름. `dep-graph` → `/dep-graph` |
+| `description` | Claude가 자동 호출 판단에 사용하는 설명. "의존성 분석해줘" 같은 요청에 자동 매칭됨 |
+| `argument-hint` | 자동완성 시 표시되는 인수 힌트 |
+| `disable-model-invocation` | `true`면 수동(`/dep-graph`)만 가능. `false`면 Claude가 맥락에 따라 자동 호출 |
+| `allowed-tools` | 스킬 실행 중 권한 확인 없이 사용할 수 있는 도구 목록 |
+
+#### 본문에서 `$ARGUMENTS` 사용
+
+`/dep-graph . --preset nextjs` 실행 시 `$ARGUMENTS`는 `. --preset nextjs`로 치환됩니다.
+
+```markdown
+python3 -m dep_graph $ARGUMENTS
+```
+
+### 사용
+
+Claude Code 세션에서:
+
+```
+/dep-graph .                                    # 현재 프로젝트 분석
+/dep-graph /path/to/project --preset nextjs     # Next.js 프리셋으로 분석
+/dep-graph . --json -o deps.json                # JSON 출력
+```
+
+또는 자연어로 요청하면 Claude가 자동으로 스킬을 호출합니다:
+
+> "이 프로젝트의 의존성을 분석해줘"
+> "순환 의존성이 있는지 확인해봐"
+
+### 프로젝트 전용 스킬
+
+전역이 아닌 특정 프로젝트에서만 사용하려면 프로젝트 루트에 배치합니다:
+
+```
+my-project/
+└── .claude/
+    └── skills/
+        └── dep-graph/
+            └── SKILL.md
+```
+
+프로젝트 스킬은 전역 스킬보다 우선순위가 높습니다.
+
+### 커스터마이즈
+
+SKILL.md 본문을 수정하여 동작을 바꿀 수 있습니다. 예를 들어:
+
+- 기본 프리셋 고정: `python3 -m dep_graph . --preset shopify`
+- 항상 JSON 출력: `python3 -m dep_graph $ARGUMENTS --json --no-open`
+- 분석 후 추가 작업: 결과 파일을 읽고 요약하도록 지시 추가
+
 ## 파일 구조
 
 ```
