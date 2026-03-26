@@ -116,3 +116,11 @@ class DependencyGraph:
                 result.append(normalized)
 
         return sorted(result, key=lambda c: (len(c), c))
+
+    def unused_files(self) -> list["Node"]:
+        """Return nodes with in_degree == 0 that are not entry points."""
+        entry_set = set(self.entry_points)
+        return [
+            n for n in self.nodes
+            if n.in_degree == 0 and n.id not in entry_set
+        ]
