@@ -42,17 +42,6 @@ def _build_category_options(graph: DependencyGraph) -> str:
     )
 
 
-def _build_stats(graph: DependencyGraph) -> str:
-    from collections import Counter
-    counts = Counter(n.category for n in graph.nodes)
-    lines = [
-        f"<div>Nodes: {len(graph.nodes)} | Edges: {len(graph.edges)}</div>",
-    ]
-    for cat in ["template", "layout", "section", "snippet", "block"]:
-        if counts[cat]:
-            lines.append(f"<div>{cat.capitalize()}s: {counts[cat]}</div>")
-    return "\n  ".join(lines)
-
 
 def render_html(graph: DependencyGraph, config: "Optional[GraphConfig]" = None) -> str:
     """Render the DependencyGraph into a self-contained interactive HTML string."""
@@ -70,7 +59,7 @@ def render_html(graph: DependencyGraph, config: "Optional[GraphConfig]" = None) 
         LAYOUT_ITERATIONS=str(config.layout_iterations),
         LEGEND_ITEMS=_build_legend(config),
         CATEGORY_OPTIONS=_build_category_options(graph),
-        STATS_ITEMS=_build_stats(graph),
+
         CYCLES_JSON=json.dumps(graph.find_cycles()),
         ENTRY_POINTS_JSON=json.dumps(graph.entry_points),
     )
