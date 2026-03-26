@@ -70,40 +70,57 @@ class DependencyGraph:
         return DependencyGraph(
             nodes=[n for n in self.nodes if n.id in ids],
             edges=[e for e in self.edges if e.source in ids or e.target in ids],
+            entry_points=[ep for ep in self.entry_points if ep in ids],
         )
 
     def find_cycles(self) -> list[list[str]]:
-        """Detect all unique cycles using DFS with back-edge detection."""
+        """Detect all unique cycles using iterative DFS with back-edge detection."""
+        node_ids = {n.id for n in self.nodes}
         adj: dict[str, list[str]] = {}
         for e in self.edges:
-            adj.setdefault(e.source, []).append(e.target)
+            if e.source in node_ids and e.target in node_ids:
+                adj.setdefault(e.source, []).append(e.target)
 
         raw_cycles: list[list[str]] = []
         for e in self.edges:
-            if e.source == e.target:
+            if e.source == e.target and e.source in node_ids:
                 raw_cycles.append([e.source])
 
         WHITE, GRAY, BLACK = 0, 1, 2
-        color: dict[str, int] = {n.id: WHITE for n in self.nodes}
+        color: dict[str, int] = {nid: WHITE for nid in node_ids}
         path: list[str] = []
-
-        def dfs(u: str) -> None:
-            color[u] = GRAY
-            path.append(u)
-            for v in adj.get(u, []):
-                if v == u:
-                    continue
-                if color[v] == GRAY:
-                    idx = path.index(v)
-                    raw_cycles.append(path[idx:])
-                elif color[v] == WHITE:
-                    dfs(v)
-            path.pop()
-            color[u] = BLACK
+        path_set: set[str] = set()
 
         for n in self.nodes:
-            if color[n.id] == WHITE:
-                dfs(n.id)
+            if color[n.id] != WHITE:
+                continue
+            stack: list[tuple[str, int]] = [(n.id, 0)]
+            while stack:
+                u, idx = stack[-1]
+                if color[u] == WHITE:
+                    color[u] = GRAY
+                    path.append(u)
+                    path_set.add(u)
+                neighbors = adj.get(u, [])
+                found_next = False
+                while idx < len(neighbors):
+                    v = neighbors[idx]
+                    idx += 1
+                    if v == u:
+                        continue
+                    if color[v] == GRAY and v in path_set:
+                        cycle_start = path.index(v)
+                        raw_cycles.append(path[cycle_start:])
+                    elif color[v] == WHITE:
+                        stack[-1] = (u, idx)
+                        stack.append((v, 0))
+                        found_next = True
+                        break
+                if not found_next:
+                    stack.pop()
+                    path.pop()
+                    path_set.discard(u)
+                    color[u] = BLACK
 
         seen: set[tuple[str, ...]] = set()
         result: list[list[str]] = []

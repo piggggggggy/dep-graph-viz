@@ -3,6 +3,7 @@
 import json
 import os
 from string import Template
+from typing import Optional
 
 from .config import GraphConfig
 from .models import DependencyGraph
@@ -43,7 +44,7 @@ def _build_category_options(graph: DependencyGraph) -> str:
 
 
 
-def render_html(graph: DependencyGraph, config: "Optional[GraphConfig]" = None) -> str:
+def render_html(graph: DependencyGraph, config: Optional[GraphConfig] = None) -> str:
     """Render the DependencyGraph into a self-contained interactive HTML string."""
     if config is None:
         config = GraphConfig()

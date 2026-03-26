@@ -354,6 +354,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
     depthMaxEl.value = maxDepth;
     depthLabelEl.textContent = "0 ~ " + maxDepth;
     nodeEls.forEach(function(c) { c.style.pointerEvents = "auto"; });
+    focusModeEnabled = false;
+    focusedNodeId = null;
+    document.getElementById("btnFocus").classList.remove("active");
+    document.getElementById("focusControls").style.display = "none";
   }
 
   document.getElementById("btnReset").addEventListener("click", resetAll);
