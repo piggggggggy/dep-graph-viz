@@ -307,6 +307,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
   svg.addEventListener("mouseup", function() { panning = false; });
 
   // Controls
+  function syncLabelOpacity(nodeId, opacity) {
+    var lbl = gLabels.querySelector("[data-id='" + nodeId + "']");
+    if (lbl) lbl.setAttribute("fill-opacity", String(opacity));
+  }
+
   function resetVisuals() {
     nodeEls.forEach(function(c) {
       var nd = nodeMap[c.dataset.id];
@@ -315,6 +320,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
       c.setAttribute("stroke", "#fff");
       c.setAttribute("stroke-width", "0.5");
       c.setAttribute("r", nd.radius);
+      syncLabelOpacity(nd.id, 1);
     });
     edgeEls.forEach(function(l) {
       l.setAttribute("stroke", "#334");
@@ -337,6 +343,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
       c.setAttribute("fill-opacity", inRange ? "0.85" : "0.08");
       c.setAttribute("stroke-width", inRange ? "0.5" : "0.3");
       c.style.pointerEvents = inRange ? "auto" : "none";
+      syncLabelOpacity(nd.id, inRange ? 1 : 0.08);
     });
     edgeEls.forEach(function(l) {
       var src = nodeMap[l.dataset.source], tgt = nodeMap[l.dataset.target];
@@ -379,7 +386,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
     var cat = this.value;
     nodeEls.forEach(function(c) {
       var nd = nodeMap[c.dataset.id];
-      c.setAttribute("fill-opacity", (cat === "all" || nd.category === cat) ? "0.85" : "0.08");
+      var visible = cat === "all" || nd.category === cat;
+      c.setAttribute("fill-opacity", visible ? "0.85" : "0.08");
+      syncLabelOpacity(nd.id, visible ? 1 : 0.08);
     });
     edgeEls.forEach(function(l) {
       var src = nodeMap[l.dataset.source], tgt = nodeMap[l.dataset.target];
@@ -391,26 +400,30 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
   document.getElementById("btnOrphans").addEventListener("click", function() {
     nodeEls.forEach(function(c) {
       var nd = nodeMap[c.dataset.id];
-      if (nd.inDegree === 0 && nd.category === "snippet") {
+      var isOrphan = nd.inDegree === 0 && nd.category === "snippet";
+      if (isOrphan) {
         c.setAttribute("fill", "#e94560"); c.setAttribute("fill-opacity", "1");
         c.setAttribute("stroke", "#ff0"); c.setAttribute("stroke-width", "2");
       } else {
         c.setAttribute("fill", nd.color); c.setAttribute("fill-opacity", "0.3");
         c.setAttribute("stroke", "#fff"); c.setAttribute("stroke-width", "0.5");
       }
+      syncLabelOpacity(nd.id, isOrphan ? 1 : 0.3);
     });
   });
 
   document.getElementById("btnHubs").addEventListener("click", function() {
     nodeEls.forEach(function(c) {
       var nd = nodeMap[c.dataset.id];
-      if (nd.inDegree >= HUB_THRESHOLD) {
+      var isHub = nd.inDegree >= HUB_THRESHOLD;
+      if (isHub) {
         c.setAttribute("fill", "#e94560"); c.setAttribute("fill-opacity", "1");
         c.setAttribute("stroke", "#ff0"); c.setAttribute("stroke-width", "2");
       } else {
         c.setAttribute("fill", nd.color); c.setAttribute("fill-opacity", "0.3");
         c.setAttribute("stroke", "#fff"); c.setAttribute("stroke-width", "0.5");
       }
+      syncLabelOpacity(nd.id, isHub ? 1 : 0.3);
     });
   });
 
@@ -419,11 +432,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
     if (!q) { resetAll(); return; }
     nodeEls.forEach(function(c) {
       var nd = nodeMap[c.dataset.id];
-      if (nd.id.toLowerCase().indexOf(q) >= 0 || nd.label.toLowerCase().indexOf(q) >= 0) {
+      var match = nd.id.toLowerCase().indexOf(q) >= 0 || nd.label.toLowerCase().indexOf(q) >= 0;
+      if (match) {
         c.setAttribute("fill-opacity", "1"); c.setAttribute("stroke", "#ff0"); c.setAttribute("stroke-width", "2");
       } else {
         c.setAttribute("fill-opacity", "0.1"); c.setAttribute("stroke", "#fff"); c.setAttribute("stroke-width", "0.5");
       }
+      syncLabelOpacity(nd.id, match ? 1 : 0.1);
     });
   });
 
@@ -653,9 +668,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
           if (unusedIds[nid]) {
             c.setAttribute("fill", "#e94560"); c.setAttribute("fill-opacity", "1");
             c.setAttribute("stroke", "#ff0"); c.setAttribute("stroke-width", "2");
+            syncLabelOpacity(nid, 1);
           } else {
             c.setAttribute("fill", nodeMap[nid].color); c.setAttribute("fill-opacity", "0.15");
             c.setAttribute("stroke", "#fff"); c.setAttribute("stroke-width", "0.3");
+            syncLabelOpacity(nid, 0.15);
           }
         });
         edgeEls.forEach(function(l) { l.setAttribute("stroke-opacity", "0.03"); });
@@ -769,10 +786,12 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
         c.setAttribute("fill-opacity", "1");
         c.setAttribute("stroke", "#e94560");
         c.setAttribute("stroke-width", "2.5");
+        syncLabelOpacity(nid, 1);
       } else {
         c.setAttribute("fill-opacity", "0.08");
         c.setAttribute("stroke", "#fff");
         c.setAttribute("stroke-width", "0.3");
+        syncLabelOpacity(nid, 0.08);
       }
     });
 
@@ -808,10 +827,12 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
         c.setAttribute("fill-opacity", "1");
         c.setAttribute("stroke", "#e94560");
         c.setAttribute("stroke-width", "2.5");
+        syncLabelOpacity(nid, 1);
       } else {
         c.setAttribute("fill-opacity", "0.08");
         c.setAttribute("stroke", "#fff");
         c.setAttribute("stroke-width", "0.3");
+        syncLabelOpacity(nid, 0.08);
       }
     });
 
@@ -885,23 +906,27 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
         c.setAttribute("stroke", "#fff");
         c.setAttribute("stroke-width", "3");
         c.setAttribute("r", nd.radius * 1.3);
+        syncLabelOpacity(nid, 1);
       } else if (nid in downstream) {
         var op = stepOpacity[downstream[nid]] || 0.15;
         c.setAttribute("fill-opacity", String(op));
         c.setAttribute("stroke", "#FF9800");
         c.setAttribute("stroke-width", "2");
         c.setAttribute("r", nd.radius);
+        syncLabelOpacity(nid, op);
       } else if (nid in upstream) {
         var op2 = stepOpacity[upstream[nid]] || 0.15;
         c.setAttribute("fill-opacity", String(op2));
         c.setAttribute("stroke", "#4ea8de");
         c.setAttribute("stroke-width", "2");
         c.setAttribute("r", nd.radius);
+        syncLabelOpacity(nid, op2);
       } else {
         c.setAttribute("fill-opacity", "0.08");
         c.setAttribute("stroke", "#fff");
         c.setAttribute("stroke-width", "0.3");
         c.setAttribute("r", nd.radius);
+        syncLabelOpacity(nid, 0.08);
       }
     });
 
