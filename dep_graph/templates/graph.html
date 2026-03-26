@@ -565,19 +565,266 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
   }
 
   function renderUnused() {
-    var placeholder = document.createElement("div");
-    placeholder.style.cssText = "color:#888;text-align:center;padding:40px;";
-    placeholder.textContent = "Unused tab — coming soon";
+    var entrySet = {};
+    ENTRY_POINTS.forEach(function(id) { entrySet[id] = true; });
+
+    var unused = nodes.filter(function(n) {
+      return n.inDegree === 0 && !entrySet[n.id];
+    });
+
+    var container = document.createElement("div");
+
+    // Summary badge
+    var badge = document.createElement("div");
+    badge.style.cssText = "background:rgba(233,69,96,0.15);border:1px solid rgba(233,69,96,0.3);border-radius:8px;padding:12px;margin-bottom:14px;text-align:center;";
+    var badgeNum = document.createElement("div");
+    badgeNum.style.cssText = "font-size:28px;color:#e94560;font-weight:bold;";
+    badgeNum.textContent = unused.length;
+    var badgeLabel = document.createElement("div");
+    badgeLabel.style.cssText = "font-size:11px;color:#888;";
+    badgeLabel.textContent = "unused files detected";
+    badge.appendChild(badgeNum);
+    badge.appendChild(badgeLabel);
+    container.appendChild(badge);
+
+    // Category filter chips
+    var catCounts = {};
+    unused.forEach(function(n) { catCounts[n.category] = (catCounts[n.category] || 0) + 1; });
+    var chipContainer = document.createElement("div");
+    chipContainer.style.cssText = "margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap;";
+
+    function makeChip(label, catFilter) {
+      var chip = document.createElement("div");
+      chip.className = "chip" + (catFilter === "all" ? " active" : "");
+      chip.textContent = label;
+      chip.addEventListener("click", function() {
+        chipContainer.querySelectorAll(".chip").forEach(function(c) { c.classList.remove("active"); });
+        chip.classList.add("active");
+        listContainer.querySelectorAll(".unused-item").forEach(function(item) {
+          item.style.display = (catFilter === "all" || item.dataset.cat === catFilter) ? "block" : "none";
+        });
+      });
+      return chip;
+    }
+
+    chipContainer.appendChild(makeChip("All (" + unused.length + ")", "all"));
+    Object.keys(catCounts).sort().forEach(function(cat) {
+      chipContainer.appendChild(makeChip(cat + " (" + catCounts[cat] + ")", cat));
+    });
+    container.appendChild(chipContainer);
+
+    // File list
+    var listContainer = document.createElement("div");
+    unused.forEach(function(n) {
+      var item = document.createElement("div");
+      item.className = "unused-item";
+      item.dataset.nodeId = n.id;
+      item.dataset.cat = n.category;
+      var nameEl = document.createElement("div");
+      nameEl.style.cssText = "font-size:11px;color:#ccc;";
+      nameEl.textContent = n.id;
+      var metaEl = document.createElement("div");
+      metaEl.style.cssText = "font-size:10px;color:#666;margin-top:3px;";
+      var sizeStr = n.size > 1024 ? (n.size / 1024).toFixed(1) + " KB" : n.size + " B";
+      metaEl.textContent = n.category + " \u00B7 " + sizeStr + " \u00B7 out: " + n.outDegree;
+      item.appendChild(nameEl);
+      item.appendChild(metaEl);
+      item.addEventListener("click", function() { activateFocus(n.id); });
+      listContainer.appendChild(item);
+    });
+    container.appendChild(listContainer);
+
+    // Highlight all button
+    if (unused.length > 0) {
+      var btnWrap = document.createElement("div");
+      btnWrap.style.textAlign = "center";
+      var btn = document.createElement("div");
+      btn.className = "highlight-btn";
+      btn.textContent = "Highlight All in Graph";
+      btn.addEventListener("click", function() {
+        var unusedIds = {};
+        unused.forEach(function(n2) { unusedIds[n2.id] = true; });
+        nodeEls.forEach(function(c) {
+          var nid = c.dataset.id;
+          if (unusedIds[nid]) {
+            c.setAttribute("fill", "#e94560"); c.setAttribute("fill-opacity", "1");
+            c.setAttribute("stroke", "#ff0"); c.setAttribute("stroke-width", "2");
+          } else {
+            c.setAttribute("fill", nodeMap[nid].color); c.setAttribute("fill-opacity", "0.15");
+            c.setAttribute("stroke", "#fff"); c.setAttribute("stroke-width", "0.3");
+          }
+        });
+        edgeEls.forEach(function(l) { l.setAttribute("stroke-opacity", "0.03"); });
+      });
+      btnWrap.appendChild(btn);
+      container.appendChild(btnWrap);
+    }
+
     panelContent.textContent = "";
-    panelContent.appendChild(placeholder);
+    panelContent.appendChild(container);
   }
 
   function renderCycles() {
-    var placeholder = document.createElement("div");
-    placeholder.style.cssText = "color:#888;text-align:center;padding:40px;";
-    placeholder.textContent = "Cycles tab — coming soon";
+    var container = document.createElement("div");
+
+    // Summary badge
+    var badge = document.createElement("div");
+    badge.style.cssText = "background:rgba(233,69,96,0.15);border:1px solid rgba(233,69,96,0.3);border-radius:8px;padding:12px;margin-bottom:14px;text-align:center;";
+    var badgeNum = document.createElement("div");
+    badgeNum.style.cssText = "font-size:28px;color:#e94560;font-weight:bold;";
+    badgeNum.textContent = CYCLES.length;
+    var badgeLabel = document.createElement("div");
+    badgeLabel.style.cssText = "font-size:11px;color:#888;";
+    badgeLabel.textContent = "circular dependencies found";
+    badge.appendChild(badgeNum);
+    badge.appendChild(badgeLabel);
+    container.appendChild(badge);
+
+    if (CYCLES.length === 0) {
+      var noIssue = document.createElement("div");
+      noIssue.style.cssText = "color:#4CAF50;text-align:center;padding:20px;font-size:13px;";
+      noIssue.textContent = "No circular dependencies detected!";
+      container.appendChild(noIssue);
+      panelContent.textContent = "";
+      panelContent.appendChild(container);
+      return;
+    }
+
+    // Cycle list
+    CYCLES.forEach(function(cycle, idx) {
+      var item = document.createElement("div");
+      item.className = "cycle-item";
+
+      // Header row
+      var header = document.createElement("div");
+      header.style.cssText = "display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;";
+      var title = document.createElement("span");
+      title.style.cssText = "font-size:11px;color:#e94560;font-weight:bold;";
+      title.textContent = "Cycle #" + (idx + 1);
+      var countBadge = document.createElement("span");
+      countBadge.className = "badge";
+      countBadge.textContent = cycle.length + " files";
+      header.appendChild(title);
+      header.appendChild(countBadge);
+      item.appendChild(header);
+
+      // Path chain
+      var chain = document.createElement("div");
+      chain.style.cssText = "display:flex;align-items:center;gap:6px;flex-wrap:wrap;";
+      cycle.forEach(function(nodeId, i) {
+        var label = (nodeMap[nodeId] || {}).label || nodeId.split("/").pop();
+        var tag = document.createElement("span");
+        tag.style.cssText = "font-size:10px;color:#ccc;background:#2a2a4a;border-radius:4px;padding:3px 8px;";
+        tag.textContent = label;
+        chain.appendChild(tag);
+        if (i < cycle.length - 1) {
+          var arrow = document.createElement("span");
+          arrow.style.cssText = "font-size:10px;color:#e94560;";
+          arrow.textContent = "\u2192";
+          chain.appendChild(arrow);
+        }
+      });
+      var loopBack = document.createElement("span");
+      loopBack.style.cssText = "font-size:10px;color:#e94560;";
+      loopBack.textContent = "\u21BA";
+      chain.appendChild(loopBack);
+      item.appendChild(chain);
+
+      item.addEventListener("click", function() { highlightCycle(cycle); });
+      container.appendChild(item);
+    });
+
+    // Highlight all button
+    var btnWrap = document.createElement("div");
+    btnWrap.style.textAlign = "center";
+    var btn = document.createElement("div");
+    btn.className = "highlight-btn";
+    btn.textContent = "Highlight All Cycles";
+    btn.addEventListener("click", highlightAllCycles);
+    btnWrap.appendChild(btn);
+    container.appendChild(btnWrap);
+
     panelContent.textContent = "";
-    panelContent.appendChild(placeholder);
+    panelContent.appendChild(container);
+  }
+
+  function highlightCycle(cycle) {
+    var cycleSet = {};
+    cycle.forEach(function(id) { cycleSet[id] = true; });
+
+    var cycleEdges = {};
+    for (var i = 0; i < cycle.length; i++) {
+      var src = cycle[i];
+      var tgt = cycle[(i + 1) % cycle.length];
+      cycleEdges[src + "|" + tgt] = true;
+    }
+
+    nodeEls.forEach(function(c) {
+      var nid = c.dataset.id;
+      if (cycleSet[nid]) {
+        c.setAttribute("fill-opacity", "1");
+        c.setAttribute("stroke", "#e94560");
+        c.setAttribute("stroke-width", "2.5");
+      } else {
+        c.setAttribute("fill-opacity", "0.08");
+        c.setAttribute("stroke", "#fff");
+        c.setAttribute("stroke-width", "0.3");
+      }
+    });
+
+    edgeEls.forEach(function(l) {
+      var key = l.dataset.source + "|" + l.dataset.target;
+      if (cycleEdges[key]) {
+        l.setAttribute("stroke", "#e94560");
+        l.setAttribute("stroke-width", "2.5");
+        l.setAttribute("stroke-opacity", "1");
+        l.setAttribute("stroke-dasharray", "6,3");
+      } else {
+        l.setAttribute("stroke", "#334");
+        l.setAttribute("stroke-width", "0.5");
+        l.setAttribute("stroke-opacity", "0.03");
+        l.setAttribute("stroke-dasharray", "");
+      }
+    });
+  }
+
+  function highlightAllCycles() {
+    var cycleNodes = {};
+    var cycleEdges = {};
+    CYCLES.forEach(function(cycle) {
+      cycle.forEach(function(id) { cycleNodes[id] = true; });
+      for (var i = 0; i < cycle.length; i++) {
+        cycleEdges[cycle[i] + "|" + cycle[(i + 1) % cycle.length]] = true;
+      }
+    });
+
+    nodeEls.forEach(function(c) {
+      var nid = c.dataset.id;
+      if (cycleNodes[nid]) {
+        c.setAttribute("fill-opacity", "1");
+        c.setAttribute("stroke", "#e94560");
+        c.setAttribute("stroke-width", "2.5");
+      } else {
+        c.setAttribute("fill-opacity", "0.08");
+        c.setAttribute("stroke", "#fff");
+        c.setAttribute("stroke-width", "0.3");
+      }
+    });
+
+    edgeEls.forEach(function(l) {
+      var key = l.dataset.source + "|" + l.dataset.target;
+      if (cycleEdges[key]) {
+        l.setAttribute("stroke", "#e94560");
+        l.setAttribute("stroke-width", "2.5");
+        l.setAttribute("stroke-opacity", "1");
+        l.setAttribute("stroke-dasharray", "6,3");
+      } else {
+        l.setAttribute("stroke", "#334");
+        l.setAttribute("stroke-width", "0.5");
+        l.setAttribute("stroke-opacity", "0.03");
+        l.setAttribute("stroke-dasharray", "");
+      }
+    });
   }
 
   var focusModeEnabled = false;
