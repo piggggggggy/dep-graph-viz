@@ -128,6 +128,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
   nodes.forEach(function(n) { if (n.depth > maxDepth) maxDepth = n.depth; });
   var depthSpacing = maxDepth > 0 ? (W * 0.76) / maxDepth : W * 0.76;
 
+  var depthMinEl = document.getElementById("depthMin");
+  var depthMaxEl = document.getElementById("depthMax");
+  var depthLabelEl = document.getElementById("depthLabel");
+  depthMinEl.max = maxDepth; depthMinEl.value = 0;
+  depthMaxEl.max = maxDepth; depthMaxEl.value = maxDepth;
+  depthLabelEl.textContent = "0 ~ " + maxDepth;
+
   nodes.forEach(function(n) {
     n.x = W * 0.12 + n.depth * depthSpacing + (Math.random() - 0.5) * 120;
     n.y = H * 0.1 + Math.random() * H * 0.8;
@@ -317,13 +324,52 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
     });
   }
 
+  function applyDepthFilter() {
+    var dMin = parseInt(depthMinEl.value);
+    var dMax = parseInt(depthMaxEl.value);
+    depthLabelEl.textContent = dMin + " ~ " + dMax;
+
+    if (focusedNodeId) return;  // Don't override focus mode
+
+    nodeEls.forEach(function(c) {
+      var nd = nodeMap[c.dataset.id];
+      var inRange = nd.depth >= dMin && nd.depth <= dMax;
+      c.setAttribute("fill-opacity", inRange ? "0.85" : "0.08");
+      c.setAttribute("stroke-width", inRange ? "0.5" : "0.3");
+      c.style.pointerEvents = inRange ? "auto" : "none";
+    });
+    edgeEls.forEach(function(l) {
+      var src = nodeMap[l.dataset.source], tgt = nodeMap[l.dataset.target];
+      var srcIn = src && src.depth >= dMin && src.depth <= dMax;
+      var tgtIn = tgt && tgt.depth >= dMin && tgt.depth <= dMax;
+      l.setAttribute("stroke-opacity", (srcIn && tgtIn) ? "0.4" : "0.03");
+    });
+  }
+
   function resetAll() {
     scale = 1; tx = 0; ty = 0;
     root.setAttribute("transform", "");
     resetVisuals();
+    depthMinEl.value = 0;
+    depthMaxEl.value = maxDepth;
+    depthLabelEl.textContent = "0 ~ " + maxDepth;
+    nodeEls.forEach(function(c) { c.style.pointerEvents = "auto"; });
   }
 
   document.getElementById("btnReset").addEventListener("click", resetAll);
+
+  depthMinEl.addEventListener("input", function() {
+    if (parseInt(depthMinEl.value) > parseInt(depthMaxEl.value)) {
+      depthMaxEl.value = depthMinEl.value;
+    }
+    applyDepthFilter();
+  });
+  depthMaxEl.addEventListener("input", function() {
+    if (parseInt(depthMaxEl.value) < parseInt(depthMinEl.value)) {
+      depthMinEl.value = depthMaxEl.value;
+    }
+    applyDepthFilter();
+  });
 
   document.getElementById("filterCategory").addEventListener("change", function() {
     var cat = this.value;
